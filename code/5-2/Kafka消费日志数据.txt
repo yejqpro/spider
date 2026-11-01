@@ -1,0 +1,43 @@
+[root@master ~]# cd /usr/local/inspur/code/flume-code/
+[root@master flume-code]# vim access_kafka.conf  #配置文件内容如下
+a1.sources = s1
+a1.sinks = k1
+a1.channels = c1
+
+#数据源配置
+a1.sources.s1.type= exec
+a1.sources.s1.command = tail -f  /var/log/httpd/access_log
+a1.sources.s1.channels=c1
+a1.sources.s1.fileHeader = false
+a1.sources.s1.interceptors = i1
+a1.sources.s1.interceptors.i1.type = timestamp
+
+#Kafka sink配置
+a1.sinks.k1.type = org.apache.flume.sink.kafka.KafkaSink
+a1.sinks.k1.topic = flume-topic             #配置topic名称
+a1.sinks.k1.brokerList = 192.168.0.136:9092  #Kafka主机链接
+a1.sinks.k1.requiredAcks = 1
+
+#使用内存通道 
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 1000
+a1.channels.c1.transactionCapacity = 100
+
+#绑定数据通道
+a1.sources.s1.channels = c1
+a1.sinks.k1.channel = c1
+
+
+[root@master bin]# ./flume-ng agent --conf conf --conf-file /usr/local/inspur/code/flume-code/access_kafka.conf --name a1
+
+[root@master ~]# cd /usr/local/kafka/bin
+[root@master bin]# kafka-console-consumer.sh --bootstrap-server 192.168.0.136:9092 --topic flume-topic --from-beginning
+
+[root@master ~]# cd /usr/local/inspur/code/pykafka/
+[root@master pykafka]# vim consumer-flume.py
+from kafka import KafkaConsumer
+consumer = KafkaConsumer('flume-topic', bootstrap_servers='localhost:9092')
+for message in consumer:
+print("topic = %s,partition = %d,offset = %d,value=%s" % (message.topic, message.partiti
+on, message.offset,message.value))
+[root@master pykafka]# python consumer-flume.py
