@@ -1,0 +1,27 @@
+[root@master local]# hdfs dfs -mkdir /Cloudtheory
+[root@master local]# hdfs dfs -put Cloudtheory_new.txt /Cloudtheory
+[root@master local]# hdfs dfs -ls /Cloudtheory
+
+[root@master local]# pig -x local
+grunt> Cloudtheory = LOAD 'hdfs://localhost:9000/Cloudtheory/Cloudtheory_new.txt' as (title:chararray,date:chararray,context:chararray);
+grunt> lmt = LIMIT Cloudtheory 10;
+grunt> dump lmt;
+
+grunt> Cloudtheory_new = FOREACH Cloudtheory GENERATE title,date,TRIM(context);
+grunt> dump Cloudtheory_new;
+
+grunt> Cloudtheory_new = Filter Cloudtheory_new by $2!='';
+grunt> dump Cloudtheory_new;
+
+grunt> Cloudtheory_group_all =Group  Cloudtheory_new All;
+grunt> dump Cloudtheory_group_all;
+grunt> Cloudtheory_count = FOREACH Cloudtheory_group_all GENERATE COUNT(Cloudtheory_new.title);
+grunt> dump Cloudtheory_count;
+
+grunt> Cloudtheory_new_order = ORDER Cloudtheory_new BY date ASC;
+grunt> dump Cloudtheory_new_order;
+
+grunt> STORE Cloudtheory_new_order INTO 'hdfs://localhost:9000/pig_output' USING PigStorage(',');
+
+[root@master ~]# hdfs dfs -ls /pig_output
+[root@master ~]# hdfs dfs -cat /pig_output/part-r-00000

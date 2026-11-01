@@ -1,0 +1,66 @@
+[root@master ~]# cd /usr/local/inspur/ 
+[root@master inspur]# mkdir ./data
+
+[root@master inspur]# cd ./code/flume-code/ 
+[root@master flume-code]# vim inspur-log-kafka.conf
+a1.sources = s1
+a1.sinks = k1
+a1.channels = c1
+
+#数据源配置
+a1.sources.s1.type= spooldir
+a1.sources.s1.spoolDir = /usr/local/inspur/data
+a1.sources.s1.channels=c1
+a1.sources.s1.fileHeader = false
+a1.sources.s1.interceptors = i1
+a1.sources.s1.interceptors.i1.type = timestamp
+
+a1.sinks.k1.type = org.apache.flume.sink.kafka.KafkaSink
+a1.sinks.k1.topic = inspur-topic
+a1.sinks.k1.brokerList = 192.168.0.136:9092
+a1.sinks.k1.requiredAcks = 1
+
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 1000
+a1.channels.c1.transactionCapacity = 100
+
+a1.sources.s1.channels = c1
+a1.sinks.k1.channel = c1
+[root@master flume-code]# cd /usr/local/flume/bin/
+[root@master bin]#./flume-ng agent --conf conf --conf-file /usr/local/inspur/code/flume-code/example.conf --name a1
+
+[es@master elasticsearch-6.1.0]$ ./bin/elasticsearch
+
+
+[root@master ~]# cd /usr/local/inspur/code/logstash-code/
+[root@master logstash-code]# vim logstash-inspur.conf   #配置文件内容如下
+input{
+  kafka{
+    bootstrap_servers=> "master:9092"
+    topics => ["inspur-topic"]
+    codec => "json"
+}
+
+}
+filter{
+  grok{
+         match => {
+               "message" => "%{IPORHOST:clientip} %{HTTPDUSER:ident} %{HTTPDUSER:auth} \[%{HTTPDATE:timestamp}\] \"%{WORD:verb} %{NOTSPACE:request}(?: HTTP/%{NUMBER:httpversion})\" %{NUMBER:response}\ %{NUMBER:bytes}"
+         }
+}
+     geoip {
+     source => "clientip"
+}
+}
+output{
+     elasticsearch {
+      hosts => ["192.168.0.136:9200"]
+      index => "inspur-logdata-2022"
+    }
+
+        stdout{
+            codec => rubydebug
+        }
+}
+[root@master logstash-code]# cd /usr/local/logstash/
+[root@master logstash]# logstash -f /usr/local/inspur/code/logstash-code/logstash-inspur.conf
